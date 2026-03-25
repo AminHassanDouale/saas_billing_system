@@ -1,0 +1,177 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Docker Compose - SaaS Billing System Development Environment
+# ═══════════════════════════════════════════════════════════════════════════
+
+version: '3.8'
+
+services:
+  # ── MySQL Database ───────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: saas_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-saas_billing}
+      MYSQL_USER: ${MYSQL_USER:-saas_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-saas_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - saas_network
+
+  # ── Redis (for Celery) ───────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: saas_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - saas_network
+
+  # ── FastAPI Application ──────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: saas_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-saas_user}:${MYSQL_PASSWORD:-saas_password}@mysql:3306/${MYSQL_DATABASE:-saas_billing}
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - saas_network
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        echo 'Running migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting application...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  # ── phpMyAdmin (Optional - for database management) ─────────────────────
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: saas_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: ${MYSQL_USER:-saas_user}
+      PMA_PASSWORD: ${MYSQL_PASSWORD:-saas_password}
+    ports:
+      - "8080:80"
+    depends_on:
+      - mysql
+    networks:
+      - saas_network
+    profiles:
+      - dev  # Only start with: docker-compose --profile dev up
+
+  # ── Celery Worker ────────────────────────────────────────────────────────
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: saas_celery_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-saas_user}:${MYSQL_PASSWORD:-saas_password}@mysql:3306/${MYSQL_DATABASE:-saas_billing}
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - saas_network
+    command: celery -A app.celery_tasks:celery_app worker --loglevel=info --concurrency=4
+
+  # ── Celery Beat Scheduler ────────────────────────────────────────────────
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: saas_celery_beat
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-saas_user}:${MYSQL_PASSWORD:-saas_password}@mysql:3306/${MYSQL_DATABASE:-saas_billing}
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - saas_network
+    command: celery -A app.celery_tasks:celery_app beat --loglevel=info
+
+  # ── Flower (Celery Monitoring) ───────────────────────────────────────────
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: saas_flower
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery-worker
+    networks:
+      - saas_network
+    command: celery -A app.celery_tasks:celery_app flower --port=5555
+    profiles:
+      - dev  # Only start with: docker-compose --profile dev up
+
+# ── Networks ─────────────────────────────────────────────────────────────
+networks:
+  saas_network:
+    driver: bridge
+
+# ── Volumes ──────────────────────────────────────────────────────────────
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
