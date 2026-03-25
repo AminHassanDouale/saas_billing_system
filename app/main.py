@@ -83,9 +83,9 @@ app = FastAPI(
     1. Create payment: `POST /api/v1/payments/create`
     2. Redirect user to `checkout_url`
     3. User completes payment on D-Money
-    4. D-Money sends webhook to `/api/v1/webhooks/dmoney`
+    4. D-Money sends webhook to `https://api.scolapp.com/api/v1/webhooks/dmoney`
     5. System updates transaction status
-    6. User redirected back to your application
+    6. User redirected back to `https://scolapp.com`
     """,
     docs_url="/docs",
     redoc_url="/redoc",

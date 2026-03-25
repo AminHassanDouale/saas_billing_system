@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.transaction import Transaction, TransactionStatus, TransactionType, PaymentMethod
 from app.models.subscription import Subscription
 from app.models.user import User
-from app.services.dmoney_gateway import DmoneyPaymentGateway
+from app.services.dmoney_gateway_v2 import DmoneyPaymentGateway
 from app.config import settings
 
 logger = logging.getLogger(__name__)

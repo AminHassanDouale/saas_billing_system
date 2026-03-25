@@ -27,7 +27,7 @@ async def handle_dmoney_webhook(
     
     This endpoint receives payment status updates from D-Money.
     Configure this URL in your D-Money merchant dashboard:
-    https://yourdomain.com/api/v1/webhooks/dmoney
+    https://api.scolapp.com/api/v1/webhooks/dmoney
     
     Security:
     - Webhook signature verification (if X-Signature header provided)

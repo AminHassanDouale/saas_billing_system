@@ -96,9 +96,9 @@ class Settings(BaseSettings):
     WEBHOOK_TIMEOUT_SECONDS: int = 10
 
     # ── Frontend URLs ──────────────────────────────────────────────────────
-    FRONTEND_URL: str = "http://localhost:3000"
-    PAYMENT_SUCCESS_URL: str = "http://localhost:3000/payment/success"
-    PAYMENT_CANCEL_URL: str = "http://localhost:3000/payment/cancel"
+    FRONTEND_URL: str = "https://scolapp.com"
+    PAYMENT_SUCCESS_URL: str = "https://scolapp.com/payment/success"
+    PAYMENT_CANCEL_URL: str = "https://scolapp.com/payment/cancel"
 
     # ── Analytics ──────────────────────────────────────────────────────────
     ANALYTICS_RETENTION_DAYS: int = 365

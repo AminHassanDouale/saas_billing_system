@@ -11,6 +11,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models.transaction import WebhookEvent, Transaction, TransactionStatus
+from app.models.subscription import SubscriptionStatus
 from app.services.payment_service import PaymentService
 from app.services.subscription_service import SubscriptionService
 from app.config import settings

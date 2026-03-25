@@ -2,7 +2,7 @@
 API Routers
 """
 
-from app.routers import auth, users, subscriptions, payments, webhooks, refunds, analytics
+from app.routers import auth, users, subscriptions, payments, webhooks, analytics
 
 __all__ = [
     "auth",
@@ -10,6 +10,5 @@ __all__ = [
     "subscriptions",
     "payments",
     "webhooks",
-    "refunds",
     "analytics",
 ]
