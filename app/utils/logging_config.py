@@ -14,45 +14,48 @@ from app.config import settings
 
 def setup_logging():
     """
-    Configure application logging with both file and console handlers
+    Configure application logging with both file and console handlers.
+    Log directory is derived from settings.LOG_FILE so it works both
+    locally (logs/app.log) and on the VPS (/var/log/saas-billing/app.log).
     """
-    
-    # Create logs directory if it doesn't exist
-    log_dir = Path("logs")
-    log_dir.mkdir(exist_ok=True)
-    
+
+    # Derive log directory from settings.LOG_FILE and create it
+    log_file = Path(settings.LOG_FILE)
+    log_dir = log_file.parent
+    log_dir.mkdir(parents=True, exist_ok=True)
+
     # Get root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, settings.LOG_LEVEL))
-    
+
     # Remove existing handlers
     root_logger.handlers = []
-    
+
     # ── Console Handler (Human-readable) ──────────────────────────────────
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
-    
+
     console_formatter = logging.Formatter(
         fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     console_handler.setFormatter(console_formatter)
-    
-    # ── File Handler (JSON format for parsing) ───────────────────────────
+
+    json_formatter = jsonlogger.JsonFormatter(
+        '%(asctime)s %(name)s %(levelname)s %(message)s %(pathname)s %(lineno)d',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # ── File Handler (JSON format for parsing) ────────────────────────────
     file_handler = RotatingFileHandler(
-        filename=log_dir / "app.log",
+        filename=log_file,
         maxBytes=10 * 1024 * 1024,  # 10 MB
         backupCount=5,
         encoding='utf-8'
     )
     file_handler.setLevel(logging.DEBUG)
-    
-    json_formatter = jsonlogger.JsonFormatter(
-        '%(asctime)s %(name)s %(levelname)s %(message)s %(pathname)s %(lineno)d',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
     file_handler.setFormatter(json_formatter)
-    
+
     # ── Error File Handler (Errors only) ──────────────────────────────────
     error_handler = RotatingFileHandler(
         filename=log_dir / "error.log",
@@ -62,7 +65,7 @@ def setup_logging():
     )
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(json_formatter)
-    
+
     # ── Access Log Handler (HTTP requests) ────────────────────────────────
     access_handler = TimedRotatingFileHandler(
         filename=log_dir / "access.log",
@@ -73,28 +76,27 @@ def setup_logging():
     )
     access_handler.setLevel(logging.INFO)
     access_handler.setFormatter(json_formatter)
-    
+
     # Add handlers to root logger
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
     root_logger.addHandler(error_handler)
-    
+
     # Configure access logger separately
     access_logger = logging.getLogger("uvicorn.access")
     access_logger.addHandler(access_handler)
-    
+
     # Configure library loggers
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
-    
-    # Log startup
+
     logger = logging.getLogger(__name__)
     logger.info(
         "Logging configured",
         extra={
             "environment": settings.ENVIRONMENT,
             "log_level": settings.LOG_LEVEL,
-            "log_dir": str(log_dir)
+            "log_dir": str(log_dir),
         }
     )
 
@@ -156,10 +158,11 @@ class AuditLogger:
     
     def __init__(self):
         self.logger = logging.getLogger("audit")
-        
-        # Create dedicated audit log file
+
+        # Derive audit log path from settings.LOG_FILE (same directory)
+        log_dir = Path(settings.LOG_FILE).parent
         audit_handler = RotatingFileHandler(
-            filename="logs/audit.log",
+            filename=log_dir / "audit.log",
             maxBytes=10 * 1024 * 1024,
             backupCount=10,
             encoding='utf-8'
